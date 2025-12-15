@@ -24,18 +24,10 @@ import {
 } from "@chakra-ui/react";
 import { useOSDRList, useSyncOSDR } from "../hooks/useSpaceData";
 import type { OSDRQueryParams } from "../types/api";
-
-const extractOSDRData = (item: any) => {
-  const raw = item.raw || {};
-
-  return {
-    dataset_id: item.dataset_id || "N/A",
-    title: item.dataset_id || "Без названия",
-    status: "available",
-    updated_at: item.updated_at || null,
-    rest_url: raw.REST_URL || "",
-  };
-};
+import { extractOSDRData } from "../utils/osdr";
+import { useFilteredOSDR } from "../hooks/useFilteredOSDR";
+import { OSDRSearch } from "./search/OSDRSearch";
+import { OSDFilters } from "./filters/OSDFilters";
 
 export const OSDRList: React.FC = () => {
   const [sortBy, setSortBy] =
@@ -61,31 +53,7 @@ export const OSDRList: React.FC = () => {
     syncOSDR.mutate(undefined);
   };
 
-  const filteredItems = useMemo(() => {
-    if (!data?.items) return [];
-
-    if (!searchQuery.trim()) return data.items;
-
-    const query = searchQuery.toLowerCase().trim();
-
-    return data.items.filter((item) => {
-      const extracted = extractOSDRData(item);
-
-      switch (searchField) {
-        case "dataset_id":
-          return extracted.dataset_id.toLowerCase().includes(query);
-        case "title":
-          return extracted.title.toLowerCase().includes(query);
-        case "all":
-        default:
-          return (
-            extracted.dataset_id.toLowerCase().includes(query) ||
-            extracted.title.toLowerCase().includes(query) ||
-            extracted.rest_url.toLowerCase().includes(query)
-          );
-      }
-    });
-  }, [data?.items, searchQuery, searchField]);
+  const filteredItems = useFilteredOSDR(data?.items, searchQuery, searchField);
 
   const handleSortClick = (field: string) => {
     if (sortBy === field) {
@@ -124,119 +92,24 @@ export const OSDRList: React.FC = () => {
             </HStack>
           </HStack>
 
-          <Box>
-            <InputGroup size="md">
-              <Input
-                placeholder="Поиск..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                bg="white"
-              />
-            </InputGroup>
+          <OSDRSearch
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchField={searchField}
+            setSearchField={setSearchField}
+          />
 
-            <HStack mt={4} spacing={2} mb={4}>
-              <Badge
-                as="button"
-                cursor="pointer"
-                colorScheme={searchField === "all" ? "blue" : "gray"}
-                onClick={() => setSearchField("all")}
-                _hover={{ opacity: 0.8 }}
-              >
-                Все поля
-              </Badge>
-              <Badge
-                as="button"
-                cursor="pointer"
-                colorScheme={searchField === "dataset_id" ? "blue" : "gray"}
-                onClick={() => setSearchField("dataset_id")}
-                _hover={{ opacity: 0.8 }}
-              >
-                Только Dataset ID
-              </Badge>
-              <Badge
-                as="button"
-                cursor="pointer"
-                colorScheme={searchField === "title" ? "blue" : "gray"}
-                onClick={() => setSearchField("title")}
-                _hover={{ opacity: 0.8 }}
-              >
-                Только названия
-              </Badge>
-
-              {searchQuery && (
-                <Badge
-                  as="button"
-                  cursor="pointer"
-                  colorScheme="red"
-                  onClick={() => setSearchQuery("")}
-                  _hover={{ opacity: 0.8 }}
-                >
-                  Очистить поиск
-                </Badge>
-              )}
-            </HStack>
-          </Box>
-
-          <Box mb={4}>
-            <SimpleGrid columns={3} spacing={4}>
-              <FormControl>
-                <FormLabel fontSize="sm">Сортировка по</FormLabel>
-                <Select
-                  size="sm"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  bg="white"
-                >
-                  <option value="inserted_at">Дате добавления</option>
-                  <option value="dataset_id">Dataset ID</option>
-                  <option value="id">ID записи</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm">Порядок сортировки</FormLabel>
-                <Select
-                  size="sm"
-                  value={order}
-                  onChange={(e) => setOrder(e.target.value as any)}
-                  bg="white"
-                >
-                  <option value="desc">По убыванию</option>
-                  <option value="asc">По возрастанию</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm">Количество записей</FormLabel>
-                <Select
-                  size="sm"
-                  value={limit}
-                  onChange={(e) => setLimit(Number(e.target.value))}
-                  bg="white"
-                >
-                  <option value={10}>10 записей</option>
-                  <option value={20}>20 записей</option>
-                  <option value={50}>50 записей</option>
-                  <option value={100}>100 записей</option>
-                </Select>
-              </FormControl>
-            </SimpleGrid>
-
-            <HStack mt={4} justify="space-between">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleResetFilters}
-                colorScheme="gray"
-              >
-                Сбросить все фильтры
-              </Button>
-
-              <Text fontSize="sm" color="gray.600">
-                Найдено: {filteredItems.length} из {data?.items?.length || 0}
-              </Text>
-            </HStack>
-          </Box>
+          <OSDFilters
+            sortBy={sortBy}
+            order={order}
+            limit={limit}
+            onSortByChange={setSortBy}
+            onOrderChange={setOrder}
+            onLimitChange={setLimit}
+            onReset={handleResetFilters}
+            filteredCount={filteredItems.length}
+            totalCount={data?.items?.length || 0}
+          />
 
           <Box overflowX="auto" position="relative">
             <Table variant="simple" size="sm">

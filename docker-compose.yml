@@ -77,6 +77,15 @@ services:
     ports:
       - "6379:6379"
 
+  visualizer:
+    build:
+      context: ./services/visualizer
+    container_name: visualizer
+    volumes:
+      - ./csv_out:/app/csv_out
+    ports:
+      - "8501:8501"
+
   pascal_legacy:
     build:
       context: ./services/pascal-legacy
@@ -92,7 +101,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # volumes:
+    #   - csvdata:/data/csv
     volumes:
-      - csvdata:/data/csv
+      - ./csv_out:/data/csv
     networks:
       - backend
