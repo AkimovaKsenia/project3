@@ -5,6 +5,8 @@ import type {
   ISSData,
   ISSTrend,
   OSDRItem,
+  OSDRQueryParams,
+  OSDRResponse,
   SpaceCache,
   SpaceSummary,
 } from "../types/api";
@@ -12,7 +14,9 @@ export const QUERY_KEYS = {
   health: ["health"] as const,
   issLast: ["iss", "last"] as const,
   issTrend: ["iss", "trend"] as const,
-  osdrList: (limit?: number) => ["osdr", "list", { limit }] as const,
+  osdrList: (params?: OSDRQueryParams | number) =>
+    ["osdr", "list", params] as const,
+
   spaceData: (src: string) => ["space", src] as const,
   spaceSummary: ["space", "summary"] as const,
 };
@@ -41,10 +45,10 @@ export const useISSTrend = () =>
     staleTime: 7000,
   });
 
-export const useOSDRList = (limit?: number) =>
-  useQuery<{ items: OSDRItem[] }>({
-    queryKey: QUERY_KEYS.osdrList(limit),
-    queryFn: () => apiService.getOSDRList(limit),
+export const useOSDRList = (params?: OSDRQueryParams | number) =>
+  useQuery<OSDRResponse>({
+    queryKey: QUERY_KEYS.osdrList(params),
+    queryFn: () => apiService.getOSDRList(params),
     staleTime: 60000,
   });
 
@@ -75,6 +79,17 @@ export const useRefreshData = () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.spaceSummary });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.issLast });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.issTrend });
+    },
+  });
+};
+
+export const useSyncOSDR = () => {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: apiService.syncOSDR,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.osdrList() });
     },
   });
 };

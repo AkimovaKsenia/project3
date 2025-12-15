@@ -545,15 +545,20 @@
 
 
 use std::time::Duration;
-
 use axum::{Router, routing::get};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+use middleware::redis_noop::redis_noop;
+use axum::middleware::from_fn_with_state;
+use deadpool_redis::Pool;
+
 
 mod app_state;
 mod db;
 mod routes;
 mod services;
 mod utils;
+mod middleware;
 
 use app_state::AppState;
 use db::init_db;
@@ -564,8 +569,17 @@ use services::space_cache_service::{
 };
 
 
+
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let redis_url = std::env::var("REDIS_URL")
+    .unwrap_or_else(|_| "redis://redis:6379".to_string());
+
+    let redis_cfg = deadpool_redis::Config::from_url(redis_url);
+    let redis_pool: Pool = redis_cfg
+    .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+    .expect("cannot create redis pool");
     let subscriber = FmtSubscriber::builder()
         .with_env_filter(EnvFilter::from_default_env())
         .finish();
@@ -597,6 +611,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         pool: pool.clone(),
+        redis: redis_pool,
         nasa_url: nasa_url.clone(),
         nasa_key,
         fallback_url: fallback_url.clone(),
@@ -679,22 +694,28 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    
+    
+    let api_routes = Router::new()
+    // ISS
+    .route("/last", get(routes::iss::last_iss))
+    .route("/fetch", get(routes::iss::trigger_iss))
+    .route("/iss/trend", get(routes::iss::iss_trend))
+    // OSDR
+    .route("/osdr/sync", get(routes::osdr::osdr_sync))
+    .route("/osdr/list", get(routes::osdr::osdr_list))
+    // Space cache
+    .route("/space/:src/latest", get(routes::space_cache::space_latest))
+    .route("/space/refresh", get(routes::space_cache::space_refresh))
+    .route("/space/summary", get(routes::space_cache::space_summary))
+    // .layer(from_fn_with_state(state.clone(), rate_limit))
+    .layer(from_fn_with_state(state.clone(), redis_noop))
+    .with_state(state.clone());
+
     let app = Router::new()
-        // общее
-        .route("/health", get(routes::health::health))
-        .with_state(state.clone())
-        // ISS
-        .route("/last", get(routes::iss::last_iss))
-        .route("/fetch", get(routes::iss::trigger_iss))
-        .route("/iss/trend", get(routes::iss::iss_trend))
-        // OSDR
-        .route("/osdr/sync", get(routes::osdr::osdr_sync))
-        .route("/osdr/list", get(routes::osdr::osdr_list))
-        // Space cache
-        .route("/space/:src/latest", get(routes::space_cache::space_latest))
-        .route("/space/refresh", get(routes::space_cache::space_refresh))
-        .route("/space/summary", get(routes::space_cache::space_summary))
-        .with_state(state);
+        .route("/health", get(routes::health::health)) 
+        .merge(api_routes);                           
+
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", 3000)).await?;
     tracing::info!("rust_iss listening on 0.0.0.0:3000");

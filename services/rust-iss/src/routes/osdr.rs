@@ -1,11 +1,25 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::{Json, http::StatusCode};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use serde::Deserialize;
 use sqlx::Row;
 
 use crate::app_state::AppState;
 use crate::services::osdr_service::fetch_and_store_osdr;
+
+
+#[derive(Deserialize)]
+pub struct OsdrQuery {
+    #[serde(default = "default_limit")]
+    limit: i64,
+    #[serde(default)]
+    sort_by: String,  
+    #[serde(default)]
+    order: String,   
+}
+
+fn default_limit() -> i64 { 20 }
 
 pub async fn osdr_sync(State(st): State<AppState>) -> Result<Json<Value>, (StatusCode, String)> {
     let written = fetch_and_store_osdr(&st).await
@@ -13,17 +27,39 @@ pub async fn osdr_sync(State(st): State<AppState>) -> Result<Json<Value>, (Statu
     Ok(Json(serde_json::json!({ "written": written })))
 }
 
-pub async fn osdr_list(State(st): State<AppState>) -> Result<Json<Value>, (StatusCode, String)> {
-    let limit =  std::env::var("OSDR_LIST_LIMIT").ok()
-        .and_then(|s| s.parse::<i64>().ok()).unwrap_or(20);
 
-    let rows = sqlx::query(
+
+pub async fn osdr_list(
+    State(st): State<AppState>,
+    Query(query): Query<OsdrQuery>,  
+) -> Result<Json<Value>, (StatusCode, String)> {
+    
+    let valid_sort_columns = ["id", "dataset_id", "title", "status", "updated_at", "inserted_at"];
+    let sort_by = if valid_sort_columns.contains(&query.sort_by.as_str()) {
+        query.sort_by.clone()
+    } else {
+        "inserted_at".to_string()
+    };
+
+    let order = if query.order.to_lowercase() == "asc" {
+        "ASC"
+    } else {
+        "DESC"
+    };
+
+    // ИЗМЕНИТЬ SQL ЗАПРОС - ДОБАВИТЬ СОРТИРОВКУ
+    let query_str = format!(
         "SELECT id, dataset_id, title, status, updated_at, inserted_at, raw
          FROM osdr_items
-         ORDER BY inserted_at DESC
-         LIMIT $1"
-    ).bind(limit).fetch_all(&st.pool).await
-     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+         ORDER BY {} {}
+         LIMIT $1",
+        sort_by, order
+    );
+
+    let rows = sqlx::query(&query_str)  // ИЗМЕНИТЬ ЭТУ СТРОКУ
+        .bind(query.limit)  // ИСПОЛЬЗОВАТЬ limit ИЗ ЗАПРОСА
+        .fetch_all(&st.pool).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let out: Vec<Value> = rows.into_iter().map(|r| {
         serde_json::json!({

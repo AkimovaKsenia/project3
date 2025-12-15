@@ -54,3 +54,13 @@ export interface SpaceSummary {
   iss: { at?: string; payload?: any };
   osdr_count: number;
 }
+
+export interface OSDRQueryParams {
+  limit?: number;
+  sort_by?: string;
+  order?: "asc" | "desc";
+}
+
+export interface OSDRResponse {
+  items: OSDRItem[];
+}

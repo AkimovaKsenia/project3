@@ -28,7 +28,7 @@ pub async fn init_db(pool: &PgPool) -> anyhow::Result<()> {
          ON osdr_items(dataset_id) WHERE dataset_id IS NOT NULL"
     ).execute(pool).await?;
 
-    // универсальный кэш космоданных
+    //  кэш космоданных
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS space_cache(
             id BIGSERIAL PRIMARY KEY,

@@ -4,6 +4,8 @@ import type {
   ISSData,
   ISSTrend,
   OSDRItem,
+  OSDRQueryParams,
+  OSDRResponse,
   SpaceCache,
   SpaceSummary,
 } from "../types/api";
@@ -28,8 +30,20 @@ export const apiService = {
   getISSTrend: (): Promise<ISSTrend> => unwrap(api.get("/iss/trend")),
 
   syncOSDR: (): Promise<{ written: number }> => unwrap(api.get("/osdr/sync")),
-  getOSDRList: (limit?: number): Promise<{ items: OSDRItem[] }> =>
-    unwrap(api.get("/osdr/list", { params: { limit } })),
+
+  getOSDRList: (params?: OSDRQueryParams | number): Promise<OSDRResponse> => {
+    let requestParams: OSDRQueryParams;
+
+    if (typeof params === "number") {
+      requestParams = { limit: params };
+    } else if (params) {
+      requestParams = params;
+    } else {
+      requestParams = { limit: 20 };
+    }
+
+    return unwrap(api.get("/osdr/list", { params: requestParams }));
+  },
 
   getSpaceData: (source: string): Promise<SpaceCache> =>
     unwrap(api.get(`/space/${encodeURIComponent(source)}/latest`)),
