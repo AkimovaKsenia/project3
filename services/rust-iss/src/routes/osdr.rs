@@ -47,7 +47,7 @@ pub async fn osdr_list(
         "DESC"
     };
 
-    // ИЗМЕНИТЬ SQL ЗАПРОС - ДОБАВИТЬ СОРТИРОВКУ
+    
     let query_str = format!(
         "SELECT id, dataset_id, title, status, updated_at, inserted_at, raw
          FROM osdr_items
@@ -56,8 +56,8 @@ pub async fn osdr_list(
         sort_by, order
     );
 
-    let rows = sqlx::query(&query_str)  // ИЗМЕНИТЬ ЭТУ СТРОКУ
-        .bind(query.limit)  // ИСПОЛЬЗОВАТЬ limit ИЗ ЗАПРОСА
+    let rows = sqlx::query(&query_str)  
+        .bind(query.limit)  
         .fetch_all(&st.pool).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
